@@ -20,13 +20,13 @@ Kube-proxy:
 
   Watches for Service and EndpointSlice changes.
   Configures network rules (e.g., iptables or IPVS) on each node.
-  These rules intercept traffic destined for a Service's virtual IP (ClusterIP, NodePort, LoadBalancer IP) and redirect it to one of the healthy backend Pods           belonging to that Service.
+  These rules intercept traffic destined for a Service's virtual IP (ClusterIP, NodePort, LoadBalancer IP) and redirect it to one of the healthy backend Pods belonging to that Service.
 
   Traffic Handled:
 
-  Traffic from outside the cluster: When an external client tries to access a NodePort or LoadBalancer Service, kube-proxy on the node receiving the traffic will       forward it to the correct Pod.
+  Traffic from outside the cluster: When an external client tries to access a NodePort or LoadBalancer Service, kube-proxy on the node receiving the traffic will forward it to the correct Pod.
 
-  Traffic from inside the cluster (Pod-to-Service): When a Pod tries to communicate with another Pod via a Service (e.g., by using the Service's DNS name or            ClusterIP), kube-proxy's rules on the originating node ensure that traffic is correctly load-balanced to one of the backend Pods.
+  Traffic from inside the cluster (Pod-to-Service): When a Pod tries to communicate with another Pod via a Service (e.g., by using the Service's DNS name or ClusterIP), kube-proxy's rules on the originating node ensure that traffic is correctly load-balanced to one of the backend Pods.
 
   Load Balancing: This is a core function, distributing connections across the available healthy Pods behind a Service.
 
