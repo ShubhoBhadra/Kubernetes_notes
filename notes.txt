@@ -1,1 +1,40 @@
-Start_notes
+CNI and Kube-proxy details:
+
+CNI (Container Network Interface):
+
+  Primary Role: Providing basic Pod-to-Pod communication within the cluster.
+
+  How it does it:
+
+    Assigns IP addresses to Pods.
+    Configures network interfaces inside the Pod's network namespace.
+    Establishes network connectivity between Pods, including across different nodes (e.g., creating overlay networks, routing traffic).
+
+Analogy: Think of CNI as the network installer and cable layer. It ensures that every Pod gets an IP address and that the "cables" (network paths) are laid out so that any Pod can talk to any other Pod.
+
+Kube-proxy:
+
+  Primary Role: Enabling Kubernetes Services to function, primarily through load balancing and ensuring traffic redirection to the correct backend Pods.
+
+  How it does it:
+
+  Watches for Service and EndpointSlice changes.
+  Configures network rules (e.g., iptables or IPVS) on each node.
+  These rules intercept traffic destined for a Service's virtual IP (ClusterIP, NodePort, LoadBalancer IP) and redirect it to one of the healthy backend Pods           belonging to that Service.
+
+  Traffic Handled:
+
+  Traffic from outside the cluster: When an external client tries to access a NodePort or LoadBalancer Service, kube-proxy on the node receiving the traffic will       forward it to the correct Pod.
+
+  Traffic from inside the cluster (Pod-to-Service): When a Pod tries to communicate with another Pod via a Service (e.g., by using the Service's DNS name or            ClusterIP), kube-proxy's rules on the originating node ensure that traffic is correctly load-balanced to one of the backend Pods.
+
+  Load Balancing: This is a core function, distributing connections across the available healthy Pods behind a Service.
+
+Analogy: kube-proxy is like the intelligent router or load balancer for the "Service" layer. It takes the traffic that's addressed to the "virtual address" of a Service and ensures it gets to the actual, live Pods backing that Service, distributing it evenly.
+
+In essence:
+
+  CNI: "Can Pod A talk to Pod B directly?" - Yes, CNI makes that happen.
+  Kube-proxy: "Can Pod A talk to 'Service X', and will 'Service X' distribute that traffic to the correct Pods behind it?" - Yes, kube-proxy makes that happen.
+
+So, your summary is spot on: CNI handles the foundational Pod-to-Pod networking, while kube-proxy builds on that to provide the Service abstraction, load balancing, and traffic routing for both internal and external communication with those services.
