@@ -149,18 +149,18 @@ spec:
 After applying this, a port (in this case, 30007) will be opened on every Node in the cluster. You can now access the NGINX web server from your local machine by navigating to <NodeIP>:30007.
 
 Summary of Key Components
-Component	Description
-Service	A stable entry point to a set of Pods.
-selector	The label selector used by the Service to find the target Pods.
-ClusterIP	The stable internal IP address assigned to the Service.
-Endpoints	An object created by Kubernetes that contains a list of the IP addresses and ports of the healthy Pods.
-kube-proxy	A process on each Node that watches for Services and Endpoints and sets up network rules for forwarding.
-port	The port on the Service itself.
-targetPort	The port on the Pod that the traffic is forwarded to.
-nodePort	The port opened on each Node for NodePort and LoadBalancer Services.
-DNS	Kubernetes' internal DNS system that allows services to be accessed by name (e.g., my-service).
+Component         |       Description
+------------------|----------------------------------------------------------------------------------------------------------------|
+Service	          |       A stable entry point to a set of Pods.
+selector	      |       The label selector used by the Service to find the target Pods.
+ClusterIP	      |       The stable internal IP address assigned to the Service.
+Endpoints	      |       An object created by Kubernetes that contains a list of the IP addresses and ports of the healthy Pods.
+kube-proxy	      |       A process on each Node that watches for Services and Endpoints and sets up network rules for forwarding.
+port	          |       The port on the Service itself.
+targetPort	      |       The port on the Pod that the traffic is forwarded to.
+nodePort	      |       The port opened on each Node for NodePort and LoadBalancer Services.
+DNS	Kubernetes    |       Internal DNS system that allows services to be accessed by name (e.g., my-service).
 
-Export to Sheets
 In conclusion, a Kubernetes Service is an essential abstraction that provides a reliable and consistent way to access a dynamic set of Pods, enabling microservice communication, load balancing, and external exposure of applications.
 ---
 
