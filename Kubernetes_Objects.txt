@@ -1,1 +1,163 @@
+Common Structure of a Kubernetes Object:
+I. Workload Objects (Managing your Applications)
+    1. Pod
+    2. Deployment
+    3. Service
+    4. StatefulSet
+    5. DaemonSet
+    6. Job
+    7. CronJob
+
+II. Service Discovery & Networking Objects
+    8. Service
+    9. Ingress
+    10. NetworkPolicy
+
+III. Storage Objects
+    11. PersistentVolume (PV)
+    12. PersistentVolumeClaim (PVC)
+    13. StorageClass
+
+IV. Configuration Objects
+    14. ConfigMap
+    15. Secret
+
+V. Security & Access Control Objects
+    16. ServiceAccount
+    17. Role
+    18. ClusterRole
+    19. RoleBinding
+    20. ClusterRoleBinding
+
+VI. Other Important Objects
+    21. Namespace
+    22. HorizontalPodAutoscaler (HPA)
+    23. PodDisruptionBudget (PDB)
+
+VII. Custom Resource Definitions (CRDs) and Custom Resources (CRs)
+
+Almost every Kubernetes object YAML file will have these top-level fields:
+
+apiVersion: Specifies the version of the Kubernetes API you're using. (e.g., v1, apps/v1, networking.k8s.io/v1)
+
+kind: Defines what kind of object you want to create. This is the type of resource (e.g., Pod, Deployment, Service).
+
+metadata: Contains data that helps uniquely identify the object, such as:
+
+name: A unique name for the object within its namespace.
+
+namespace: The namespace the object belongs to (if it's a namespaced object).
+
+labels: Key-value pairs used to identify and select groups of objects.
+
+annotations: Non-identifying metadata for tools or users.
+
+spec: This is the core of the object. It describes the desired state you want for the object. The content of the spec field is unique to each kind of object. For example:
+
+For a Pod, spec defines containers, volumes, restart policy, etc.
+
+For a Deployment, spec defines the number of replicas, the Pod template, and the update strategy.
+
+For a Service, spec defines ports, selector, and type.
+
+status: This field describes the current state of the object, as observed by the Kubernetes system. You don't set this; Kubernetes updates it. For example, for a Deployment, the status might show how many replicas are currently running and available.
+
+Examples of Core Kubernetes Objects:
+Here are some of the most fundamental and frequently used Kubernetes objects:
+
+Pod:
+
+Purpose: The smallest deployable unit in Kubernetes. Represents a single instance of a running process in your cluster. A Pod can contain one or more tightly coupled containers that share network and storage resources.
+
+Example Use: Running a single application container, or an application with a sidecar container (e.g., a web server and a logging agent).
+
+Deployment:
+
+Purpose: Manages stateless applications. Provides declarative updates for Pods and ReplicaSets. Handles rolling updates, rollbacks, and ensures a desired number of Pod replicas are running.
+
+Example Use: Deploying a web application, API service, or any other stateless microservice.
+
+Service:
+
+Purpose: Defines a logical set of Pods and a policy for accessing them. Provides a stable IP address and DNS name for a group of Pods, abstracting away their dynamic nature. Enables load balancing and inter-Pod communication.
+
+Example Use: Exposing a web server to other applications in the cluster (ClusterIP), or to the internet (NodePort, LoadBalancer).
+
+StatefulSet:
+
+Purpose: Manages stateful applications. Provides guarantees about the ordering and uniqueness of Pods, stable network identities, and stable persistent storage.
+
+Example Use: Deploying databases (like MariaDB, PostgreSQL), message queues (Kafka), or any application that requires persistent identifiers or ordered deployment.
+
+PersistentVolume (PV) & PersistentVolumeClaim (PVC):
+
+Purpose (PV): Represents a piece of physical storage (e.g., a cloud disk, an NFS share) provisioned for use by the cluster.
+
+Purpose (PVC): A request for storage by a user/Pod. It consumes a PV. Together, they provide persistent storage that outlives Pods.
+
+Example Use: Providing storage for databases or other applications that need to retain data.
+
+ConfigMap:
+
+Purpose: Stores non-sensitive configuration data in key-value pairs. Decouples configuration from application code.
+
+Example Use: Storing database connection strings (excluding passwords), application environment variables, or NGINX configuration files.
+
+Secret:
+
+Purpose: Stores sensitive information like passwords, API keys, and tokens.
+
+Example Use: Providing database credentials or API tokens to application Pods securely.
+
+Namespace:
+
+Purpose: Provides a mechanism for isolating groups of resources within a single cluster. It helps organize resources and can be used for multi-tenancy.
+
+Example Use: Separating development, staging, and production environments within the same cluster, or isolating resources for different teams.
+
+---
+
+These objects enable communication between your applications and external access.
+
+Service
+
+Purpose: Defines a logical set of Pods and a policy for accessing them. Provides a stable IP address and DNS name for a group of Pods, abstracting away their dynamic nature. Comes in types: ClusterIP, NodePort, LoadBalancer, ExternalName.
+
+When to use: To expose your applications within the cluster or to the outside world.
+
+Ingress
+
+Purpose: Manages external access to services in a cluster, typically HTTP/S. Provides URL-based routing, SSL termination, and virtual hosting. Requires an Ingress controller (e.g., NGINX Ingress Controller, Traefik).
+
+When to use: Exposing multiple services under a single public IP address, configuring custom domains, SSL/TLS termination.
+
+NetworkPolicy
+
+Purpose: Specifies how groups of Pods are allowed to communicate with each other and with other network endpoints (external or internal). It's a firewall for Pods.
+
+When to use: Implementing network segmentation and security policies (e.g., "front-end Pods can talk to back-end Pods, but not to the database directly, and back-end Pods can't initiate connections to the internet").
+
+---
+
+These objects manage persistent storage for your applications.
+
+PersistentVolume (PV)
+
+Purpose: An abstraction of a piece of network storage (like a cloud disk, NFS share, or iSCSI target) that has been provisioned by an administrator or dynamically by a StorageClass. It represents the actual storage resource.
+
+When to use: Defined by cluster administrators to make storage available.
+
+PersistentVolumeClaim (PVC)
+
+Purpose: A request for storage by a user or a Pod. It claims a specific amount of storage with certain access modes (e.g., ReadWriteOnce). A PVC binds to an available PV that meets its requirements.
+
+When to use: Pods or StatefulSets request storage using PVCs.
+
+StorageClass
+
+Purpose: Defines different "classes" of storage available in your cluster. It tells Kubernetes how to dynamically provision PersistentVolumes when a PVC requests storage of a particular class.
+
+When to use: For dynamic provisioning of storage based on different performance tiers, costs, or backup policies (e.g., "fast-ssd", "standard-hdd").
+
+---
 
