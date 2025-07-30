@@ -1,1 +1,286 @@
 Step by step process to deploy Database.
+Goal: Deploy a single MariaDB database instance in Kubernetes with persistent storage and a stable network identity.
+
+Prerequisites:
+A running Kubernetes cluster:
+Minikube: Excellent for local development. Install it and start it with minikube start.
+Kind: Another good local option.
+Cloud Cluster: If you have access to GKE, EKS, AKS, etc., that works too.
+kubectl: The Kubernetes command-line tool, configured to connect to your cluster.
+
+Basic understanding of YAML: Kubernetes resources are defined in YAML files.
+
+Step-by-Step Deployment Process
+
+Phase 1: Preparation (Secrets, Storage, Network Identity)
+    Step 1: Create a Namespace (Recommended)
+        It's good practice to isolate your applications.
+        
+        Create a file named 01-namespace.yaml:
+        # 01-namespace.yaml
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: mariadb-test-ns
+
+        Apply it:
+        kubectl apply -f 01-namespace.yaml
+
+        Verify:
+        kubectl get ns mariadb-test-ns
+
+    Step 2: Create a Secret for MariaDB Passwords
+        This securely stores sensitive information.
+        
+        Generate Base64 encoded passwords:
+        
+        For root password: echo -n "myRootPassword123" | base64 (Replace myRootPassword123 with your strong password)
+        
+        For a regular user password: echo -n "myUserPassword456" | base64 (Replace myUserPassword456 with your strong password)
+        
+        For a regular username: echo -n "myuser" | base64
+        
+        Create a file named 02-mariadb-secret.yaml:
+        # 02-mariadb-secret.yaml
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: mariadb-credentials
+          namespace: mariadb-test-ns
+        type: Opaque # A generic type for arbitrary user-defined data
+        data:
+          # Replace these with your actual base64 encoded values
+          mariadb-root-password: <YOUR_BASE64_ENCODED_ROOT_PASSWORD>
+          mariadb-user: <YOUR_BASE64_ENCODED_USERNAME>
+          mariadb-password: <YOUR_BASE64_ENCODED_USER_PASSWORD>
+
+        Apply it:
+        kubectl apply -f 02-mariadb-secret.yaml
+
+        Verify:
+        kubectl get secret mariadb-credentials -n mariadb-test-ns
+        # To view data (for verification, be cautious in production):
+        # kubectl get secret mariadb-credentials -n mariadb-test-ns -o yaml
+
+    Step 3: Define a StorageClass (Important for Local Clusters)
+        This tells Kubernetes how to provision persistent storage.
+        
+        Scenario A: You are using Minikube/Kind or a cluster with a default StorageClass.
+        
+        You might already have a default StorageClass. Check with: kubectl get storageclass
+        
+        If you see one marked (default), you might be able to skip creating a new one and just use its name in the StatefulSet.
+        
+        For Minikube/Kind, standard is usually the default. You can also explicitly create one if you wish, or use the hostpath provisioner (for local testing only):
+      
+        # 03-storageclass-minikube.yaml (For Minikube/Kind - NOT for production)
+        apiVersion: storage.k8s.io/v1
+        kind: StorageClass
+        metadata:
+          name: mariadb-hostpath-storage
+        provisioner: k8s.io/minikube-hostpath # Or kubernetes.io/hostpath for Kind
+        reclaimPolicy: Retain # Retain data even if PVC is deleted (safer for databases)
+        volumeBindingMode: Immediate
+        Apply: kubectl apply -f 03-storageclass-minikube.yaml
+        
+        Scenario B: You are on a Cloud Provider (e.g., GKE, EKS, AKS).
+        
+        These platforms usually have default StorageClasses pre-configured (e.g., standard on GKE, gp2 on EKS).
+        
+        You can directly use the default one or create a specific one referencing the cloud provider's disk types. For this guide, we'll assume a default is available or use the Minikube/Kind example.
+    
+    Step 4: Create a Headless Service for Stable Network Identity
+        This is crucial for StatefulSets to manage unique network names for each Pod.
+        Create a file named 04-mariadb-headless-service.yaml:
+
+        # 04-mariadb-headless-service.yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: mariadb-cluster # This will be used in the StatefulSet as serviceName
+          namespace: mariadb-test-ns
+          labels:
+            app: mariadb
+        spec:
+          ports:
+            - port: 3306
+              name: mariadb
+          clusterIP: None # THIS MAKES IT A HEADLESS SERVICE
+          selector:
+            app: mariadb # Matches the labels on our StatefulSet Pods
+
+        Apply it:
+        kubectl apply -f 04-mariadb-headless-service.yaml
+
+        Verify:
+        kubectl get svc mariadb-cluster -n mariadb-test-ns
+        # You should see CLUSTER-IP as 'None'
+
+Phase 2: Deploying the MariaDB StatefulSet
+    Step 5: Create the MariaDB StatefulSet
+        This defines your MariaDB Pods and their persistent storage.
+        
+        Create a file named 05-mariadb-statefulset.yaml:
+
+        # 05-mariadb-statefulset.yaml
+        apiVersion: apps/v1
+        kind: StatefulSet
+        metadata:
+          name: mariadb
+          namespace: mariadb-test-ns
+        spec:
+          serviceName: "mariadb-cluster" # Must match the headless service name
+          replicas: 1 # Start with a single replica for this example
+          selector:
+            matchLabels:
+              app: mariadb # Matches the Pods it will manage
+          template:
+            metadata:
+              labels:
+                app: mariadb
+            spec:
+              containers:
+                - name: mariadb
+                  image: mariadb:10.6 # Use a specific, stable MariaDB version
+                  ports:
+                    - containerPort: 3306
+                      name: mariadb-port
+                  env:
+                    - name: MARIADB_ROOT_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: mariadb-credentials
+                          key: mariadb-root-password
+                    - name: MARIADB_DATABASE
+                      value: myappdb # Optional: A default database to create
+                    - name: MARIADB_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: mariadb-credentials
+                          key: mariadb-user
+                    - name: MARIADB_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: mariadb-credentials
+                          key: mariadb-password
+                  volumeMounts:
+                    - name: mariadb-persistent-storage # Matches the name in volumeClaimTemplates
+                      mountPath: /var/lib/mysql # Default data directory for MariaDB
+                  livenessProbe: # Checks if the container is still running
+                    tcpSocket:
+                      port: 3306
+                    initialDelaySeconds: 30
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                  readinessProbe: # Checks if the container is ready to serve traffic
+                    tcpSocket:
+                      port: 3306
+                    initialDelaySeconds: 10
+                    periodSeconds: 5
+                    timeoutSeconds: 3
+                  resources: # Recommended: Define resource requests and limits
+                    requests:
+                      memory: "256Mi"
+                      cpu: "200m"
+                    limits:
+                      memory: "1Gi"
+                      cpu: "1"
+          volumeClaimTemplates: # This creates a PVC for each replica managed by the StatefulSet
+            - metadata:
+                name: mariadb-persistent-storage # This name is used in volumeMounts
+              spec:
+                accessModes: ["ReadWriteOnce"] # Only one Pod can mount it at a time
+                # IMPORTANT: Replace with your chosen StorageClass name (e.g., 'standard' or 'mariadb-hostpath-storage')
+                storageClassName: mariadb-hostpath-storage # Or whatever your chosen SC name is
+                resources:
+                  requests:
+                    storage: 2Gi # Request 2 GB of persistent storage
+
+        Apply it:
+        kubectl apply -f 05-mariadb-statefulset.yaml
+
+        Verify:
+        kubectl get statefulset mariadb -n mariadb-test-ns
+        kubectl get pods -l app=mariadb -n mariadb-test-ns -w # Watch for pod to become Running/Ready
+        Wait until mariadb-0 shows 1/1 Running and Ready.
+
+Phase 3: Connecting to the Database (Testing)
+  Step 6: Create a Client Pod to Test Connectivity
+      You'll use this Pod to run mysql client commands.
+      
+      Create a file named 06-mariadb-client-pod.yaml:
+      # 06-mariadb-client-pod.yaml
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: mariadb-client-test
+        namespace: mariadb-test-ns
+      spec:
+        containers:
+          - name: mariadb-client
+            image: mariadb-client:latest # Or just 'mysql/mysql-server:latest' if that's easier for client
+            command: ["/bin/bash", "-c", "sleep infinity"] # Keep the container running
+            env:
+              # Connect to the stable hostname of the StatefulSet Pod
+              # Format: <pod-name>.<headless-service-name>.<namespace>.svc.cluster.local
+              - name: MYSQL_HOST
+                value: mariadb-0.mariadb-cluster.mariadb-test-ns.svc.cluster.local
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: mariadb-credentials
+                    key: mariadb-root-password
+      Apply it:
+      kubectl apply -f 06-mariadb-client-pod.yaml
+
+      Verify:
+      kubectl get pod mariadb-client-test -n mariadb-test-ns -w
+      Wait until it's Running and Ready.
+  
+  Step 7: Connect to MariaDB from the Client Pod
+  
+      Execute a shell inside the client Pod:
+      kubectl exec -it mariadb-client-test -n mariadb-test-ns -- bash
+      Inside the client Pod's shell, connect to MariaDB:
+
+      mysql -h $MYSQL_HOST -u root -p$MYSQL_ROOT_PASSWORD
+      (You should be prompted for the root password, but since it's an env var, it might just connect. If it asks, enter myRootPassword123 or whatever you set.)
+      
+      Once connected, you can run SQL commands:
+
+      SHOW DATABASES;
+      USE myappdb;
+      CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255));
+      INSERT INTO users (name) VALUES ('Alice'), ('Bob');
+      SELECT * FROM users;
+      EXIT; -- Exit mysql client
+      EXIT; -- Exit client pod shell
+
+Phase 4: Cleanup (Optional)
+  Step 8: Clean up your resources
+      This removes everything you deployed.
+
+      Delete the Client Pod:
+      kubectl delete -f 06-mariadb-client-pod.yaml
+      Delete the StatefulSet (This will delete the Pods but not the PVCs by default due to reclaimPolicy: Retain):
+
+      kubectl delete -f 05-mariadb-statefulset.yaml
+      Delete the Headless Service:
+
+      kubectl delete -f 04-mariadb-headless-service.yaml
+      Delete the PersistentVolumeClaim (This is crucial to truly remove the data):
+
+      kubectl delete pvc mariadb-persistent-storage-mariadb-0 -n mariadb-test-ns
+      # The PVC name will be mariadb-persistent-storage-<statefulset-pod-name>
+      
+      Note: If you used a cloud provider's storage, deleting the PVC will typically delete the underlying cloud disk. If you used hostPath for Minikube, the data might still be on your host machine's filesystem where Minikube stores its data.
+      
+      Delete the Secret:
+      kubectl delete -f 02-mariadb-secret.yaml
+      Delete the StorageClass (if you created a custom one):
+
+      kubectl delete -f 03-storageclass-minikube.yaml # Or your custom SC file
+      Delete the Namespace:
+
+      kubectl delete -f 01-namespace.yaml
+      # Or just `kubectl delete ns mariadb-test-ns`
